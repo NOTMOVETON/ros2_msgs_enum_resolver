@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+# Copyright 2026 Dmitriy Kotov
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""enum_echo - subscribe to a ROS2 topic and print messages with enum decoding.
+
+Usage::
+
+    ros2 run ros2_msgs_enum_resolver enum_echo /topic
+    ros2 run ros2_msgs_enum_resolver enum_echo /topic sensor_msgs/msg/NavSatStatus
+    ros2 run ros2_msgs_enum_resolver enum_echo /topic --count 5
+    ros2 run ros2_msgs_enum_resolver enum_echo /topic --no-enum
+
+"""
+
+import argparse
+import sys
+import time
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile
+from rosidl_runtime_py import message_to_ordereddict
+from rosidl_runtime_py.utilities import get_message
+
+from ros2_msgs_enum_resolver.field_type_parser import FieldTypeParser
+from ros2_msgs_enum_resolver.message_formatter import format_message
+
+
+def _ros2_type_to_interface(ros2_type: str) -> str:
+    """Normalise a ROS2 type string to pkg/msg/Name form."""
+    parts = ros2_type.split('/')
+    if len(parts) == 3:
+        return ros2_type
+    if len(parts) == 2:
+        return f'{parts[0]}/msg/{parts[1]}'
+    return ros2_type
+
+
+class EnumEchoNode(Node):
+    """Subscribes to a topic and prints messages with optional enum decoding."""
+
+    def __init__(
+        self,
+        topic: str,
+        msg_type_str: str,
+        count: int,
+        enum_enabled: bool,
+        wait_timeout: float = 10.0,
+    ) -> None:
+        super().__init__('enum_echo')
+        self._count = count
+        self._received = 0
+        self._enum_enabled = enum_enabled
+
+        # ----------------------------------------------------------------
+        # Шаг 1: Определение типа топика и его QoS.
+        # Использование ЭТОГО ЖЕ узла для обнаружения сохраняет состояние
+        # графа DDS. Это позволяет избежать потери сообщений во время
+        # переподключения, как это бывает при пересоздании узлов.
+        # ----------------------------------------------------------------
+        qos_profile = QoSProfile(depth=10)
+        detected_type = msg_type_str
+        detected_qos = None
+
+        start_time = time.monotonic()
+        deadline = start_time + wait_timeout
+
+        while time.monotonic() < deadline:
+            # Пытаемся обнаружить тип топика, если он не был передан вручную
+            if not detected_type:
+                for name, types in self.get_topic_names_and_types():
+                    if name == topic and types:
+                        detected_type = types[0]
+                        break
+
+            # Получаем информацию о QoS публикатора, чтобы подстроиться под него.
+            # Это решает проблему "потери первого сообщения", если оно Transient Local.
+            pubs = self.get_publishers_info_by_topic(topic)
+            if pubs:
+                detected_qos = pubs[0].qos_profile
+                break
+
+            # Если тип был задан вручную (не нужно его искать), не ждем QoS вечно
+            if detected_type and msg_type_str is not None:
+                if time.monotonic() - start_time > 1.0:
+                    break
+
+            rclpy.spin_once(self, timeout_sec=0.1)
+
+        if not detected_type:
+            raise RuntimeError(
+                f"Topic '{topic}' not found after {wait_timeout:.0f}s. "
+                f"Is the publisher running? You can also pass the type explicitly."
+            )
+
+        if detected_qos:
+            qos_profile.reliability = detected_qos.reliability
+            qos_profile.durability = detected_qos.durability
+
+        self._interface_type = _ros2_type_to_interface(detected_type)
+
+        # ----------------------------------------------------------------
+        # Шаг 2: Прогрев кэша ДО создания подписки
+        # ----------------------------------------------------------------
+        if self._enum_enabled:
+            FieldTypeParser.get_fields(self._interface_type)
+
+        # ----------------------------------------------------------------
+        # Шаг 3: Создание подписчика
+        # ----------------------------------------------------------------
+        msg_class = get_message(detected_type)
+        self._sub = self.create_subscription(
+            msg_class, topic, self._callback, qos_profile,
+        )
+
+        # flush=True решает проблему системной буферизации Python
+        print(
+            f"Subscribing to {topic} [{detected_type}] ... "
+            f"({'enum decoding ON' if self._enum_enabled else 'plain mode'})",
+            flush=True
+        )
+        print(flush=True)
+
+    def _callback(self, msg: object) -> None:
+        """Handle one incoming message."""
+        msg_dict = message_to_ordereddict(msg)
+        formatted = format_message(
+            msg_dict,
+            self._interface_type,
+            indent=0,
+            enabled=self._enum_enabled,
+        )
+        print(formatted, flush=True)
+        print('---', flush=True)
+        self._received += 1
+
+    @property
+    def done(self) -> bool:
+        """Return True when the requested message count has been received."""
+        return 0 < self._count <= self._received
+
+
+def main() -> int:
+    """Entry point for the enum_echo script."""
+    parser = argparse.ArgumentParser(
+        description='Subscribe to a ROS2 topic and print messages with enum decoding.',
+    )
+    parser.add_argument('topic', help='Topic name, e.g. /my_topic')
+    parser.add_argument(
+        'msg_type', nargs='?', default=None,
+        help='Message type (optional). If omitted, detected automatically.',
+    )
+    parser.add_argument(
+        '--count', '-n', type=int, default=0, metavar='N',
+        help='Stop after N messages (default: run until Ctrl-C).',
+    )
+    parser.add_argument(
+        '--no-enum', action='store_true',
+        help='Disable enum decoding (plain echo mode).',
+    )
+    parser.add_argument(
+        '--wait-timeout', type=float, default=10.0, metavar='SECS',
+        help='Seconds to wait for topic type auto-detection (default: 10).',
+    )
+    args = parser.parse_args()
+
+    rclpy.init()
+    node = None
+
+    try:
+        # Теперь всё (обнаружение, парсинг и подписка) происходит внутри одного узла
+        node = EnumEchoNode(
+            topic=args.topic,
+            msg_type_str=args.msg_type,
+            count=args.count,
+            enum_enabled=not args.no_enum,
+            wait_timeout=args.wait_timeout,
+        )
+
+        if args.count > 0:
+            while rclpy.ok() and not node.done:
+                rclpy.spin_once(node, timeout_sec=0.1)
+        else:
+            rclpy.spin(node)
+
+    except KeyboardInterrupt:
+        pass
+    except RuntimeError as exc:
+        print(f'ERROR: {exc}', file=sys.stderr, flush=True)
+        return 1
+    finally:
+        if node is not None:
+            node.destroy_node()
+        try:
+            rclpy.shutdown()
+        except Exception:
+            pass
+
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
