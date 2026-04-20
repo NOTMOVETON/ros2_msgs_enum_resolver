@@ -1,0 +1,15 @@
+# Bash completion for enum_echo
+# Installed to share/bash-completion/completions/enum_echo
+# Found automatically when the package prefix is in XDG_DATA_DIRS.
+
+_enum_echo() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    case $COMP_CWORD in
+        1)
+            # Complete topic name from live ROS2 graph
+            COMPREPLY=($(ros2 topic list 2>/dev/null | grep "^${cur}"))
+            ;;
+    esac
+}
+
+complete -o default -F _enum_echo enum_echo

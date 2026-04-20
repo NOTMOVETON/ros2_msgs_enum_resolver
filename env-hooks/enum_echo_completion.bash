@@ -4,11 +4,13 @@
 # No manual action required from the user.
 
 # ── Direct: `enum_echo /topic` ───────────────────────────────────────────────
-if command -v register-python-argcomplete3 >/dev/null 2>&1; then
-    eval "$(register-python-argcomplete3 enum_echo 2>/dev/null)" || true
-elif command -v register-python-argcomplete >/dev/null 2>&1; then
-    eval "$(register-python-argcomplete enum_echo 2>/dev/null)" || true
-fi
+_enum_echo_complete() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    case $COMP_CWORD in
+        1) COMPREPLY=($(ros2 topic list 2>/dev/null | grep "^${cur}")) ;;
+    esac
+}
+complete -o default -F _enum_echo_complete enum_echo
 
 # ── Via ros2 run: `ros2 run ros2_msgs_enum_resolver enum_echo /topic` ─────────
 #

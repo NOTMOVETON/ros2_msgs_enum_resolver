@@ -59,16 +59,28 @@ ament_python_install_package(${PROJECT_NAME}
 # ---------------------------------------------------------------------------
 # Install scripts (enum_echo entry point)
 # ---------------------------------------------------------------------------
+# lib/${PROJECT_NAME}/ — for `ros2 run ros2_msgs_enum_resolver enum_echo`
+# bin/                 — for direct `enum_echo` invocation (always on PATH)
 install(
   PROGRAMS scripts/enum_echo
   DESTINATION lib/${PROJECT_NAME}
 )
+install(
+  PROGRAMS scripts/enum_echo
+  DESTINATION bin
+)
 
-# Tab completion: the .bash script is installed as a regular file;
-# the .dsv.in descriptor tells ament to source it via setup.bash.
+# Tab completion:
+#   enum_echo_completion.bash — ament env hook (sourced via setup.bash)
+#   enum_echo.bash-completion — static bash completion file for XDG_DATA_DIRS lookup
 install(
   FILES env-hooks/enum_echo_completion.bash
   DESTINATION share/${PROJECT_NAME}
+)
+install(
+  FILES env-hooks/enum_echo.bash-completion
+  RENAME enum_echo
+  DESTINATION share/bash-completion/completions
 )
 ament_environment_hooks(
   "${CMAKE_CURRENT_SOURCE_DIR}/env-hooks/enum_echo_completion.dsv.in"
