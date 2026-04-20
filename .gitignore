@@ -1,0 +1,6 @@
+# reprepro internal state — not needed in git
+db/
+
+# leftover from main branch (untracked)
+debian/
+.obj-*/
