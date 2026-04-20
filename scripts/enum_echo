@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Copyright 2026 Dmitriy Kotov
+# PYTHON_ARGCOMPLETE_OK
+# Copyright 2024 Your Name
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,10 +18,14 @@
 
 Usage::
 
-    ros2 run ros2_msgs_enum_resolver enum_echo /topic
-    ros2 run ros2_msgs_enum_resolver enum_echo /topic sensor_msgs/msg/NavSatStatus
-    ros2 run ros2_msgs_enum_resolver enum_echo /topic --count 5
-    ros2 run ros2_msgs_enum_resolver enum_echo /topic --no-enum
+    enum_echo /topic
+    enum_echo /topic sensor_msgs/msg/NavSatStatus
+    enum_echo /topic --count 5
+    enum_echo /topic --no-enum
+
+Enable tab completion (once per shell session or add to ~/.bashrc)::
+
+    eval "$(register-python-argcomplete enum_echo)"
 
 """
 
@@ -30,12 +35,43 @@ import time
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile
 from rosidl_runtime_py import message_to_ordereddict
 from rosidl_runtime_py.utilities import get_message
 
 from ros2_msgs_enum_resolver.field_type_parser import FieldTypeParser
 from ros2_msgs_enum_resolver.message_formatter import format_message
+
+
+class _TopicCompleter:
+    """Tab completer that queries live ROS2 topics via ``ros2 topic list``."""
+
+    def __call__(self, prefix, **kwargs):
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['ros2', 'topic', 'list'],
+                capture_output=True,
+                text=True,
+                timeout=3.0,
+            )
+            topics = result.stdout.strip().splitlines()
+            return [t for t in topics if t.startswith(prefix)]
+        except Exception:
+            return []
+
+
+def _get_topic_type(node: Node, topic: str, timeout: float = 10.0) -> str:
+    """Wait until the topic appears in the graph and return its type string."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        for name, types in node.get_topic_names_and_types():
+            if name == topic and types:
+                return types[0]
+        rclpy.spin_once(node, timeout_sec=0.2)
+    raise RuntimeError(
+        f"Topic '{topic}' not found after {timeout:.0f}s. "
+        f"Is the publisher running? You can also pass the type explicitly."
+    )
 
 
 def _ros2_type_to_interface(ros2_type: str) -> str:
@@ -57,81 +93,17 @@ class EnumEchoNode(Node):
         msg_type_str: str,
         count: int,
         enum_enabled: bool,
-        wait_timeout: float = 10.0,
     ) -> None:
         super().__init__('enum_echo')
+        self._interface_type = _ros2_type_to_interface(msg_type_str)
         self._count = count
         self._received = 0
         self._enum_enabled = enum_enabled
 
-        # ----------------------------------------------------------------
-        # Шаг 1: Определение типа топика и его QoS.
-        # Использование ЭТОГО ЖЕ узла для обнаружения сохраняет состояние
-        # графа DDS. Это позволяет избежать потери сообщений во время
-        # переподключения, как это бывает при пересоздании узлов.
-        # ----------------------------------------------------------------
-        qos_profile = QoSProfile(depth=10)
-        detected_type = msg_type_str
-        detected_qos = None
-
-        start_time = time.monotonic()
-        deadline = start_time + wait_timeout
-
-        while time.monotonic() < deadline:
-            # Пытаемся обнаружить тип топика, если он не был передан вручную
-            if not detected_type:
-                for name, types in self.get_topic_names_and_types():
-                    if name == topic and types:
-                        detected_type = types[0]
-                        break
-
-            # Получаем информацию о QoS публикатора, чтобы подстроиться под него.
-            # Это решает проблему "потери первого сообщения", если оно Transient Local.
-            pubs = self.get_publishers_info_by_topic(topic)
-            if pubs:
-                detected_qos = pubs[0].qos_profile
-                break
-
-            # Если тип был задан вручную (не нужно его искать), не ждем QoS вечно
-            if detected_type and msg_type_str is not None:
-                if time.monotonic() - start_time > 1.0:
-                    break
-
-            rclpy.spin_once(self, timeout_sec=0.1)
-
-        if not detected_type:
-            raise RuntimeError(
-                f"Topic '{topic}' not found after {wait_timeout:.0f}s. "
-                f"Is the publisher running? You can also pass the type explicitly."
-            )
-
-        if detected_qos:
-            qos_profile.reliability = detected_qos.reliability
-            qos_profile.durability = detected_qos.durability
-
-        self._interface_type = _ros2_type_to_interface(detected_type)
-
-        # ----------------------------------------------------------------
-        # Шаг 2: Прогрев кэша ДО создания подписки
-        # ----------------------------------------------------------------
-        if self._enum_enabled:
-            FieldTypeParser.get_fields(self._interface_type)
-
-        # ----------------------------------------------------------------
-        # Шаг 3: Создание подписчика
-        # ----------------------------------------------------------------
-        msg_class = get_message(detected_type)
+        msg_class = get_message(msg_type_str)
         self._sub = self.create_subscription(
-            msg_class, topic, self._callback, qos_profile,
+            msg_class, topic, self._callback, 10,
         )
-
-        # flush=True решает проблему системной буферизации Python
-        print(
-            f"Subscribing to {topic} [{detected_type}] ... "
-            f"({'enum decoding ON' if self._enum_enabled else 'plain mode'})",
-            flush=True
-        )
-        print(flush=True)
 
     def _callback(self, msg: object) -> None:
         """Handle one incoming message."""
@@ -142,8 +114,8 @@ class EnumEchoNode(Node):
             indent=0,
             enabled=self._enum_enabled,
         )
-        print(formatted, flush=True)
-        print('---', flush=True)
+        print(formatted)
+        print('---')
         self._received += 1
 
     @property
@@ -157,7 +129,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description='Subscribe to a ROS2 topic and print messages with enum decoding.',
     )
-    parser.add_argument('topic', help='Topic name, e.g. /my_topic')
+
+    topic_arg = parser.add_argument(
+        'topic',
+        help='Topic name, e.g. /my_topic',
+    )
+    topic_arg.completer = _TopicCompleter()
+
     parser.add_argument(
         'msg_type', nargs='?', default=None,
         help='Message type (optional). If omitted, detected automatically.',
@@ -174,20 +152,45 @@ def main() -> int:
         '--wait-timeout', type=float, default=10.0, metavar='SECS',
         help='Seconds to wait for topic type auto-detection (default: 10).',
     )
+
+    # argcomplete.autocomplete() MUST be called before parse_args().
+    # When the user presses Tab, argcomplete intercepts here, calls
+    # _TopicCompleter and exits without ever reaching rclpy.init().
+    import argcomplete
+    argcomplete.autocomplete(parser)
+
     args = parser.parse_args()
 
     rclpy.init()
     node = None
 
     try:
-        # Теперь всё (обнаружение, парсинг и подписка) происходит внутри одного узла
+        if args.msg_type is None:
+            detect_node = rclpy.create_node('enum_echo_detect')
+            try:
+                msg_type_str = _get_topic_type(
+                    detect_node, args.topic, args.wait_timeout
+                )
+            finally:
+                detect_node.destroy_node()
+        else:
+            msg_type_str = args.msg_type
+
+        if not args.no_enum:
+            FieldTypeParser.get_fields(_ros2_type_to_interface(msg_type_str))
+
         node = EnumEchoNode(
             topic=args.topic,
-            msg_type_str=args.msg_type,
+            msg_type_str=msg_type_str,
             count=args.count,
             enum_enabled=not args.no_enum,
-            wait_timeout=args.wait_timeout,
         )
+
+        print(
+            f"Subscribing to {args.topic} [{msg_type_str}] ... "
+            f"({'enum decoding ON' if not args.no_enum else 'plain mode'})"
+        )
+        print()
 
         if args.count > 0:
             while rclpy.ok() and not node.done:
@@ -198,7 +201,7 @@ def main() -> int:
     except KeyboardInterrupt:
         pass
     except RuntimeError as exc:
-        print(f'ERROR: {exc}', file=sys.stderr, flush=True)
+        print(f'ERROR: {exc}', file=sys.stderr)
         return 1
     finally:
         if node is not None:

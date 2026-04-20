@@ -26,6 +26,11 @@
   <depend>rclpy</depend>
   <depend>rosidl_runtime_py</depend>
 
+  <!-- ros2topic provides TopicNameCompleter for tab completion -->
+  <exec_depend>ros2topic</exec_depend>
+  <!-- python3-argcomplete enables tab completion in the shell -->
+  <exec_depend>python3-argcomplete</exec_depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
   <test_depend>ament_cmake_gtest</test_depend>
