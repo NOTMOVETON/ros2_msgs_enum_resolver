@@ -9,12 +9,31 @@ automatically decodes numeric enum fields to their symbolic names.
 Reads `.msg`, `.srv`, `.action` interface files directly from the ament_index.
 No code generation. No build-time registration. No message-package dependency.
 
+---
+
 ## Install
 
+### apt (Ubuntu Noble + ROS 2 Jazzy)
+
 ```bash
-sudo add-apt-repository ppa:you/ros2-extra
+curl -fsSL https://NOTMOVETON.github.io/ros2_msgs_enum_resolver/KEY.gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/notmoveton.gpg
+
+echo "deb [signed-by=/etc/apt/keyrings/notmoveton.gpg] https://NOTMOVETON.github.io/ros2_msgs_enum_resolver noble main" \
+  | sudo tee /etc/apt/sources.list.d/notmoveton.list
+
 sudo apt update
-sudo apt install ros-humble-ros2-msgs-enum-resolver
+sudo apt install ros-jazzy-ros2-msgs-enum-resolver
+```
+
+### Build from source
+
+```bash
+cd ~/ros2_ws/src
+git clone https://github.com/NOTMOVETON/ros2_msgs_enum_resolver.git
+cd ~/ros2_ws
+colcon build --packages-select ros2_msgs_enum_resolver
+source install/setup.bash
 ```
 
 ---
@@ -36,6 +55,16 @@ ros2 run ros2_msgs_enum_resolver enum_echo /my_topic --no-enum
 
 # Increase auto-detect timeout (default: 10s)
 ros2 run ros2_msgs_enum_resolver enum_echo /my_topic --wait-timeout 30
+```
+
+### Tab completion
+
+Topic names are tab-completable. After `source install/setup.bash` (workspace build)
+or `source /opt/ros/jazzy/setup.bash` (apt install) completion activates automatically:
+
+```bash
+ros2 run ros2_msgs_enum_resolver enum_echo <TAB>   # lists live topics
+enum_echo <TAB>                                     # same, direct invocation
 ```
 
 ### Output format
@@ -109,10 +138,10 @@ auto all   = ER::getConstants("my_pkg/msg/ConnectionEventEnum");
 auto typed = ER::getConstantsForPrimitive("sensor_msgs/msg/NavSatStatus", "int8");
 
 // --- srv / action sections ---
-auto req = ER::resolve("my_pkg/srv/SetMode/Request",    10);
-auto res = ER::resolve("my_pkg/srv/SetMode/Response",    0);
-auto goal = ER::resolve("my_pkg/action/Navigate/Goal",   1);
-auto fb   = ER::resolve("my_pkg/action/Navigate/Feedback", 0);
+auto req  = ER::resolve("my_pkg/srv/SetMode/Request",      10);
+auto res  = ER::resolve("my_pkg/srv/SetMode/Response",      0);
+auto goal = ER::resolve("my_pkg/action/Navigate/Goal",      1);
+auto fb   = ER::resolve("my_pkg/action/Navigate/Feedback",  0);
 
 // --- Introspection ---
 bool pure  = ER::isEnumOnlyType("my_pkg/msg/ConnectionEventEnum"); // true
@@ -209,41 +238,60 @@ print(format_message(msg_dict, 'sensor_msgs/msg/NavSatStatus'))
 
 ---
 
-## Repository structure
+## Examples
 
-```
-ros2_msgs_enum_resolver/
-├── include/ros2_msgs_enum_resolver/
-│   └── ros2_msgs_enum_resolver.hpp   C++ header
-├── src/
-│   └── ros2_msgs_enum_resolver.cpp   C++ implementation
-├── ros2_msgs_enum_resolver/
-│   ├── __init__.py
-│   ├── ros2_msgs_enum_resolver.py    Python EnumResolver
-│   ├── field_type_parser.py          Field -> FieldInfo mapping
-│   └── message_formatter.py         dict -> formatted string
-├── scripts/
-│   └── enum_echo                     CLI tool
-└── test/
-    ├── test_ros2_msgs_enum_resolver.cpp
-    └── test_ros2_msgs_enum_resolver.py
-```
-
----
-
-## Build from source
+Runnable examples are installed alongside the package:
 
 ```bash
-cd ~/ros2_ws/src
-git clone https://github.com/you/ros2_msgs_enum_resolver.git
-cd ~/ros2_ws
-colcon build --packages-select ros2_msgs_enum_resolver
-source install/setup.bash
+# C++ — standalone (no ROS spin, prints output and exits)
+ros2 run ros2_msgs_enum_resolver example_basic_usage
+
+# C++ — publisher + subscriber nodes
+ros2 run ros2_msgs_enum_resolver example_publisher   # terminal 1
+ros2 run ros2_msgs_enum_resolver example_subscriber  # terminal 2
+
+# Python — standalone
+ros2 run ros2_msgs_enum_resolver basic_usage.py
+
+# Python — publisher + subscriber nodes
+ros2 run ros2_msgs_enum_resolver publisher_node.py   # terminal 1
+ros2 run ros2_msgs_enum_resolver subscriber_node.py  # terminal 2
 ```
+
+Source code: [examples/cpp/](examples/cpp/) and [examples/python/](examples/python/).
+
+---
 
 ## Tests
 
 ```bash
 colcon test --packages-select ros2_msgs_enum_resolver
 colcon test-result --verbose
+```
+
+---
+
+## Repository structure
+
+```
+ros2_msgs_enum_resolver/
+├── include/ros2_msgs_enum_resolver/
+│   └── ros2_msgs_enum_resolver.hpp     C++ header
+├── src/
+│   └── ros2_msgs_enum_resolver.cpp     C++ implementation
+├── ros2_msgs_enum_resolver/
+│   ├── __init__.py
+│   ├── ros2_msgs_enum_resolver.py      Python EnumResolver
+│   ├── field_type_parser.py            Field -> FieldInfo mapping
+│   └── message_formatter.py           dict -> formatted string
+├── scripts/
+│   └── enum_echo                       CLI tool
+├── examples/
+│   ├── cpp/                            C++ usage examples
+│   └── python/                         Python usage examples
+├── env-hooks/
+│   └── enum_echo_completion.bash       Tab completion hook
+└── test/
+    ├── test_ros2_msgs_enum_resolver.cpp
+    └── test_ros2_msgs_enum_resolver.py
 ```
