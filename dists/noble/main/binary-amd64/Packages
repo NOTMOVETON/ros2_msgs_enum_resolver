@@ -2,15 +2,15 @@ Package: ros-jazzy-ros2-msgs-enum-resolver
 Version: 1.0.0-0noble
 Architecture: amd64
 Maintainer: Your Name <you@example.com>
-Installed-Size: 1076
+Installed-Size: 865
 Depends: libc6 (>= 2.38), libgcc-s1 (>= 3.3.1), libstdc++6 (>= 13.1), python3-argcomplete, ros-jazzy-ament-index-cpp, ros-jazzy-ament-index-python, ros-jazzy-rclcpp, ros-jazzy-rclpy, ros-jazzy-ros2topic, ros-jazzy-rosidl-runtime-py, ros-jazzy-sensor-msgs
 Priority: optional
 Section: misc
 Filename: pool/main/r/ros-jazzy-ros2-msgs-enum-resolver/ros-jazzy-ros2-msgs-enum-resolver_1.0.0-0noble_amd64.deb
-Size: 210478
-SHA256: 4e7dd74af424d8949b1d18a0cb4ad1c69fc36ed193f61ce627a30d838bc059b6
-SHA1: 9e92dcbe90ee3e8cd7735e3601cffddacd638c99
-MD5sum: 3d4f8a7a53d94f160dc1532be3425547
+Size: 210500
+SHA256: 37da519802c4049e89214b6e204c345e1a0b27115acd82815ded82509ca54d3f
+SHA1: c8ca7a5b43abbc5100cd6b3002c92b0b9cb31e68
+MD5sum: 21bf0e182f0df8d4ab384b297c50c019
 Description: Static C++ and Python utility that resolves ROS2 message numeric constants to their symbolic names (and vice-versa) by reading .msg / .srv / .action files directly from the ament_index at runtime.
  Includes enum_echo: a CLI tool to subscribe to any topic and display messages with numeric constants decoded to their symbolic names.
 
