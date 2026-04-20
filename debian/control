@@ -1,0 +1,13 @@
+Source: ros-jazzy-ros2-msgs-enum-resolver
+Section: misc
+Priority: optional
+Maintainer: Your Name <you@example.com>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-ament-cmake, ros-jazzy-ament-cmake-gtest <!nocheck>, ros-jazzy-ament-cmake-pytest <!nocheck>, ros-jazzy-ament-cmake-python, ros-jazzy-ament-index-cpp, ros-jazzy-ament-index-python, ros-jazzy-ament-lint-auto <!nocheck>, ros-jazzy-ament-lint-common <!nocheck>, ros-jazzy-rclcpp, ros-jazzy-rclpy, ros-jazzy-rosidl-runtime-py, ros-jazzy-sensor-msgs
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-ros2-msgs-enum-resolver
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, python3-argcomplete, ros-jazzy-ament-index-cpp, ros-jazzy-ament-index-python, ros-jazzy-rclcpp, ros-jazzy-rclpy, ros-jazzy-ros2topic, ros-jazzy-rosidl-runtime-py, ros-jazzy-sensor-msgs
+Description: Static C++ and Python utility that resolves ROS2 message numeric constants to their symbolic names (and vice-versa) by reading .msg / .srv / .action files directly from the ament_index at runtime.
+ Includes enum_echo: a CLI tool to subscribe to any topic and display messages with numeric constants decoded to their symbolic names.

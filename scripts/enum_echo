@@ -156,8 +156,11 @@ def main() -> int:
     # argcomplete.autocomplete() MUST be called before parse_args().
     # When the user presses Tab, argcomplete intercepts here, calls
     # _TopicCompleter and exits without ever reaching rclpy.init().
-    import argcomplete
-    argcomplete.autocomplete(parser)
+    try:
+        import argcomplete
+        argcomplete.autocomplete(parser)
+    except ImportError:
+        pass  # python3-argcomplete not installed; tab completion unavailable
 
     args = parser.parse_args()
 

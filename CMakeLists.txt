@@ -64,12 +64,55 @@ install(
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# Tab completion: the .bash script is installed as a regular file;
+# the .dsv.in descriptor tells ament to source it via setup.bash.
+install(
+  FILES env-hooks/enum_echo_completion.bash
+  DESTINATION share/${PROJECT_NAME}
+)
+ament_environment_hooks(
+  "${CMAKE_CURRENT_SOURCE_DIR}/env-hooks/enum_echo_completion.dsv.in"
+)
+
 # ---------------------------------------------------------------------------
 # Export
 # ---------------------------------------------------------------------------
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_dependencies(ament_index_cpp)
 ament_export_include_directories(include)
+
+# ---------------------------------------------------------------------------
+# Examples
+# ---------------------------------------------------------------------------
+find_package(rclcpp     REQUIRED)
+find_package(sensor_msgs REQUIRED)
+
+# C++ — basic usage (не нода, просто печатает и выходит)
+add_executable(example_basic_usage examples/cpp/basic_usage.cpp)
+target_link_libraries(example_basic_usage ${PROJECT_NAME})
+
+# C++ — publisher и subscriber ноды
+add_executable(example_publisher  examples/cpp/publisher_node.cpp)
+add_executable(example_subscriber examples/cpp/subscriber_node.cpp)
+foreach(tgt example_publisher example_subscriber)
+  target_link_libraries(${tgt} ${PROJECT_NAME})
+  ament_target_dependencies(${tgt} rclcpp sensor_msgs)
+endforeach()
+
+install(TARGETS
+  example_basic_usage
+  example_publisher
+  example_subscriber
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Python — устанавливаем как исполняемые скрипты
+install(PROGRAMS
+  examples/python/basic_usage.py
+  examples/python/publisher_node.py
+  examples/python/subscriber_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 # ---------------------------------------------------------------------------
 # Tests

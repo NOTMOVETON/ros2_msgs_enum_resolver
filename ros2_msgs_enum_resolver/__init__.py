@@ -13,5 +13,7 @@
 # limitations under the License.
 
 from ros2_msgs_enum_resolver.ros2_msgs_enum_resolver import EnumResolver
+from ros2_msgs_enum_resolver.field_type_parser import FieldTypeParser, FieldInfo
+from ros2_msgs_enum_resolver.message_formatter import format_message
 
-__all__ = ["EnumResolver"]
+__all__ = ["EnumResolver", "FieldTypeParser", "FieldInfo", "format_message"]
